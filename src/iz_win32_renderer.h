@@ -1,5 +1,3 @@
-#include "iz_win32_opengl.h"
-
 TYPEDEF_FUNC(void, renderer_begin_frame, imm width, imm height);
 TYPEDEF_FUNC(void, renderer_end_frame);
 

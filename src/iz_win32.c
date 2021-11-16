@@ -27,7 +27,7 @@ typedef struct Win32_Game_Code
 {
     Win32_File_Timestamp timestamp;
     HMODULE handle;
-    platform_game_tick_func* game_tick;
+    platform_game_tick game_tick;
 } Win32_Game_Code;
 
 internal void
@@ -80,6 +80,107 @@ Win32_ErrorPrompt(const char* message, ...)
     Arena_EndTempMemory(Platform->transient_memory, mem_marker);
 }
 
+bool
+Win32_GetFileInfo(String path, File_Info* file_info)
+{
+    bool succeeded = false;
+    
+    Memory_Arena_Marker marker = Arena_BeginTempMemory(Platform->transient_memory);
+    
+    int required_chars = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, 0, 0);
+    
+    if (required_chars != 0)
+    {
+        WCHAR* wide_path = Arena_PushSize(Platform->transient_memory, (required_chars + 1) * sizeof(WCHAR), ALIGNOF(WCHAR));
+        
+        if (MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, wide_path, required_chars) == required_chars)
+        {
+            wide_path[required_chars] = 0;
+            
+            WIN32_FILE_ATTRIBUTE_DATA attributes;
+            if (GetFileAttributesExW(wide_path, GetFileExInfoStandard, &attributes))
+            {
+                file_info->creation_time.value    = (u64)attributes.ftCreationTime.dwHighDateTime   << 32 | attributes.ftCreationTime.dwLowDateTime;
+                file_info->last_write_time.value  = (u64)attributes.ftLastWriteTime.dwHighDateTime  << 32 | attributes.ftLastWriteTime.dwLowDateTime;
+                file_info->last_access_time.value = (u64)attributes.ftLastAccessTime.dwHighDateTime << 32 | attributes.ftLastAccessTime.dwLowDateTime;
+                file_info->file_size              = attributes.nFileSizeLow;
+                
+                // NOTE: files larger than 4GB are not supported
+                if (attributes.nFileSizeHigh == 0)
+                {
+                    succeeded = true;
+                }
+            }
+        }
+    }
+    
+    Arena_EndTempMemory(Platform->transient_memory, marker);
+    
+    return succeeded;
+}
+
+bool
+Win32_ReadEntireFile(String path, Memory_Arena* arena, File_Info* file_info, String* file_contents)
+{
+    bool succeeded = false;
+    
+    Memory_Arena_Marker marker = Arena_BeginTempMemory(Platform->transient_memory);
+    
+    HANDLE file_handle = INVALID_HANDLE_VALUE;
+    u32 file_size      = 0;
+    
+    int required_chars = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, 0, 0);
+    
+    if (required_chars != 0)
+    {
+        WCHAR* wide_path = Arena_PushSize(Platform->transient_memory, (required_chars + 1) * sizeof(WCHAR), ALIGNOF(WCHAR));
+        
+        if (MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, wide_path, required_chars) == required_chars)
+        {
+            wide_path[required_chars] = 0;
+            
+            WIN32_FILE_ATTRIBUTE_DATA attributes;
+            if (GetFileAttributesExW(wide_path, GetFileExInfoStandard, &attributes))
+            {
+                if (file_info != 0)
+                {
+                    file_info->creation_time.value    = (u64)attributes.ftCreationTime.dwHighDateTime   << 32 | attributes.ftCreationTime.dwLowDateTime;
+                    file_info->last_write_time.value  = (u64)attributes.ftLastWriteTime.dwHighDateTime  << 32 | attributes.ftLastWriteTime.dwLowDateTime;
+                    file_info->last_access_time.value = (u64)attributes.ftLastAccessTime.dwHighDateTime << 32 | attributes.ftLastAccessTime.dwLowDateTime;
+                    file_info->file_size              = attributes.nFileSizeLow;
+                }
+                
+                file_size = attributes.nFileSizeLow;
+                
+                // NOTE: files larger than 4GB are not supported
+                if (attributes.nFileSizeHigh == 0)
+                {
+                    file_handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, attributes.dwFileAttributes, 0);
+                }
+            }
+        }
+    }
+    
+    
+    Arena_EndTempMemory(Platform->transient_memory, marker);
+    
+    if (file_handle != INVALID_HANDLE_VALUE)
+    {
+        file_contents->size = file_size;
+        file_contents->data = Arena_PushSize(arena, file_size + 1, ALIGNOF(WCHAR));
+        
+        DWORD bytes_read;
+        if (ReadFile(file_handle, file_contents->data, (u32)file_size, &bytes_read, 0) && bytes_read == file_size)
+        {
+            file_contents->data[file_contents->size] = 0;
+            
+            succeeded = true;
+        }
+    }
+    
+    return succeeded;
+}
+
 LRESULT CALLBACK
 WindowProc(HWND window_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -121,7 +222,7 @@ Win32_LoadGameCode(Win32_Game_Code* game_code, LPWSTR game_code_path, LPWSTR tem
         if (handle == 0) Win32_Log("Failed to load game code dll");
         else
         {
-            platform_game_tick_func* tick = (platform_game_tick_func*)GetProcAddress(handle, "GameTick");
+            platform_game_tick tick = (platform_game_tick)GetProcAddress(handle, "GameTick");
             
             if (tick == 0) Win32_Log("Failed to load game tick function");
             else
@@ -132,8 +233,9 @@ Win32_LoadGameCode(Win32_Game_Code* game_code, LPWSTR game_code_path, LPWSTR tem
                 DeleteFile(loaded_game_code_path);
                 if (MoveFile(temp_game_code_path, loaded_game_code_path))
                 {
+					DeleteFile(temp_game_code_path);
                     handle = LoadLibraryW(loaded_game_code_path);
-                    tick = (platform_game_tick_func*)GetProcAddress(handle, "GameTick");
+                    tick = (platform_game_tick)GetProcAddress(handle, "GameTick");
                     
                     if (handle != 0 && tick != 0)
                     {
@@ -175,7 +277,11 @@ WinMainCRTStartup()
         {
             bool setup_failed = false;
             
-            Platform_Data platform = {0};
+            Platform_Data platform = {
+                .GetFileInfo    = &Win32_GetFileInfo,
+                .ReadEntireFile = &Win32_ReadEntireFile,
+            };
+            
             Platform = &platform;
             
             /// Setup memory arenas

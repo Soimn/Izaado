@@ -45,6 +45,9 @@ del iz_win32.obj
 del izaado.lib
 del izaado.exp
 
+copy izaado.exe ..\run_path\.
+copy game.dll ..\run_path\.
+
 :DONE
 
 popd

@@ -69,6 +69,7 @@ global GLuint GLRIM_CircleProgram;
 global GLuint GLRIM_RectProgram;
 global GLuint GLRIM_TextProgram;
 global GLuint GLRIM_VAO;
+global GLuint GLRIM_DebugFontTexture;
 
 internal bool
 GLRIM_Setup()
@@ -156,10 +157,12 @@ GLRIM_Setup()
         "main()\n"
         "{\n"
         "mat4 transform = matrix;\n"
-        "transform[2] = vec4(0, 0, 1, 0);\n"
+        "transform[0].zw  = vec2(0);\n"
+        "transform[1].zw  = vec2(0);\n"
+        "transform[2].xyz = vec3(0, 0, 1);\n"
         "gl_Position = transform * vec4(position, 1.0);\n"
         "\n"
-        "uv = (position.xy * 0.5 + vec2(0.5) + vec2(int(matrix[2].w) % 16, int(matrix[2].w) / 16)) / 16;\n"
+        "uv = position.xy * matrix[0].zw + matrix[1].zw;\n"
         "c  = matrix[2].xyz;\n"
         "}\n";
     
@@ -290,6 +293,7 @@ GLRIM_Setup()
             1.0, 1.0, 0.0,
         };
         
+        // TODO: check for opengl errors in the code below
         glGenVertexArrays(1, &GLRIM_VAO);
         glBindVertexArray(GLRIM_VAO);
         
@@ -299,6 +303,35 @@ GLRIM_Setup()
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertecies), vertecies, GL_STATIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, false, 0, 0);
         glEnableVertexAttribArray(0);
+        
+        bool successfully_loaded_debug_font = false;
+        
+        Memory_Arena_Marker marker = Arena_BeginTempMemory(Platform->transient_memory);
+        
+        String debug_font_file_contents;
+        if (Platform->ReadEntireFile(STRING("debug/debug_fontmap.tga"), Platform->transient_memory, 0, &debug_font_file_contents))
+        {
+            Targa_Header header;
+            if (Targa_ReadHeader(debug_font_file_contents, &header))
+            {
+                ASSERT(header.width == 160 && header.height == 160 && header.depth == 32 &&
+                       header.image_format == TargaImageFormat_UncompressedTrueColor);
+                
+                glGenTextures(1, &GLRIM_DebugFontTexture);
+                glBindTexture(GL_TEXTURE_2D, GLRIM_DebugFontTexture);
+                
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 160, 160, 0, GL_RGBA, GL_UNSIGNED_BYTE, header.data);
+                
+                successfully_loaded_debug_font = true;
+            }
+        }
+        
+        Arena_EndTempMemory(Platform->transient_memory, marker);
+        
+        if (!successfully_loaded_debug_font) break;
         
         success = true;
     } while (0);
@@ -342,10 +375,10 @@ GLRIM_PushLine(V2 p0, V2 p1, f32 line_thickness, V3 color)
 void
 GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
 {
-    V2 center = {(rect.min.x + rect.max.x) / 2, (rect.min.y + rect.max.y) / 2};
+    V2 center = Rect_Center(rect);
     
-    f32 half_width  = (rect.max.x - rect.min.x) / 2;
-    f32 half_height = (rect.max.y - rect.min.y) / 2;
+    f32 half_width  = Rect_Width(rect)  / 2;
+    f32 half_height = Rect_Height(rect) / 2;
     
     f32 sin_a = Sin(angle);
     f32 cos_a = Cos(angle);
@@ -371,10 +404,10 @@ GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
 void
 GLRIM_PushRect(Rect rect, f32 angle, f32 line_thickness, V3 color)
 {
-    V2 center = {(rect.min.x + rect.max.x) / 2, (rect.min.y + rect.max.y) / 2};
+    V2 center = Rect_Center(rect);
     
-    f32 width  = rect.max.x - rect.min.x;
-    f32 height = rect.max.y - rect.min.y;
+    f32 width  = Rect_Width(rect);
+    f32 height = Rect_Height(rect);
     
     f32 sin_a = Sin(angle);
     f32 cos_a = Cos(angle);
@@ -453,4 +486,47 @@ GLRIM_PushFilledCircle(V2 center, f32 radius, V3 color)
 void
 GLRIM_PushText(Rect text_box, f32 angle, String text, V3 color)
 {
+    f32 text_size = Rect_Height(text_box);
+    if (text.size * text_size > Rect_Width(text_box))
+    {
+        text_size = Rect_Width(text_box) / text.size;
+    }
+    
+    glUseProgram(GLRIM_TextProgram);
+    glBindTexture(GL_TEXTURE_2D, GLRIM_DebugFontTexture);
+    glBindVertexArray(GLRIM_VAO);
+    
+    V2 advancement = (V2){text_box.min.x, text_box.min.y + text_size / 2};
+    for (umm i = 0; i < text.size; ++i)
+    {
+        f32 character_width   = 1.0f;
+        f32 character_end_pad = 0.0f;
+        
+        f32 half_width  = character_width * text_size / 2;
+        f32 half_height = text_size                   / 2;
+        
+        V2 translation = V2_Add(advancement, (V2){half_width, 0});
+        
+        f32 sin_a = Sin(angle);
+        f32 cos_a = Cos(angle);
+        
+        M4 transform = {
+            .e = {
+                Renderer->aspect_ratio * cos_a * half_width, sin_a * half_width, 0, 0,
+                Renderer->aspect_ratio * -sin_a * half_height, cos_a * half_height, 0, 0,
+                0, 0, 1, 0,
+                Renderer->aspect_ratio * translation.x, translation.y, 0, 1,
+            }
+        };
+        
+        // NOTE: color and uv adjustment info is packed into the matrix and extracted in the vertex shader
+        transform.i.zw = V2_Scale((V2){character_width / 2, 0.5f}, 1 / 16.0f);
+        transform.j.zw = V2_Scale(V2_Add((V2){character_width / 2, 0.5f}, (V2){(f32)(text.data[i] % 16), (f32)((255 - text.data[i]) / 16)}), 1 / 16.0f);
+        transform.k.xyz = color;
+        
+        glUniformMatrix4fv(1, 1, false, transform.e);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        
+        advancement.x += (character_width + character_end_pad) * text_size;
+    }
 }

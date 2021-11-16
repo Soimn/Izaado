@@ -178,10 +178,30 @@ typedef Buffer String;
 #include "iz_renderer.h"
 #include "iz_targa.h"
 
+
+typedef struct File_Timestamp
+{
+    u64 value;
+} File_Timestamp;
+
+typedef struct File_Info
+{
+    File_Timestamp creation_time;
+    File_Timestamp last_access_time;
+    File_Timestamp last_write_time;
+    u32 file_size;
+} File_Info;
+
+TYPEDEF_FUNC(bool, platform_get_file_info, String path, File_Info* file_info);
+TYPEDEF_FUNC(bool, platform_read_entire_file, String path, Memory_Arena* arena, File_Info* file_info, String* file_contents);
+
 typedef struct Platform_Data
 {
     Memory_Arena* persistent_memory;
     Memory_Arena* transient_memory;
+    
+    platform_get_file_info GetFileInfo;
+    platform_read_entire_file ReadEntireFile;
     
     struct Renderer_State renderer_state;
 } Platform_Data;
@@ -189,5 +209,4 @@ typedef struct Platform_Data
 Platform_Data* Platform;
 Renderer_State* Renderer;
 
-#define PLATFORM_GAME_TICK_FUNC(name) void name(Platform_Data* platform)
-typedef PLATFORM_GAME_TICK_FUNC(platform_game_tick_func);
+TYPEDEF_FUNC(void, platform_game_tick, Platform_Data* platform);
