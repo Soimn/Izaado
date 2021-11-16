@@ -13,6 +13,7 @@
 #undef near
 
 #include "iz_platform.h"
+#include "iz_renderer_opengl.h"
 #include "iz_win32_renderer.h"
 
 typedef struct Win32_File_Timestamp
@@ -289,7 +290,7 @@ WinMainCRTStartup()
             /// Setup renderer
             if (!setup_failed)
             {
-                setup_failed = !Renderer_Setup(instance, window_handle);
+                setup_failed = !Win32_RendererSetup(instance, window_handle);
             }
             
             /// Load game code

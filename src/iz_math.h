@@ -63,31 +63,31 @@ typedef union  V4
     struct { V2 xy; f32 _0; f32 _1; };
     struct { f32 _2; V2 yz; f32 _3; };
     struct { f32 _4; f32 _5; V2 zw; };
-    struct { V2 xyz; f32 _6; };
+    struct { V3 xyz; f32 _6; };
     struct { f32 _7; V2 yzw; };
     
     struct { V2 rg;   f32 _8;  f32 _9;  };
     struct { f32 _10; V2 gb;   f32 _11; };
     struct { f32 _12; f32 _13; V2 ba;   };
-    struct { V2 rgb;  f32 _14; };
+    struct { V3 rgb;  f32 _14; };
     struct { f32 _15; V2 gba;  };
 } V4;
 
 typedef union M2
 {
-    V2 i, j;
+    struct { V2 i, j; };
     f32 e[4];
 } M2;
 
 typedef union M3
 {
-    V3 i, j, k;
+    struct { V3 i, j, k; };
     f32 e[9];
 } M3;
 
 typedef union M4
 {
-    V4 i, j, k, w;
+    struct { V4 i, j, k, w; };
     f32 e[16];
 } M4;
 
@@ -543,33 +543,45 @@ typedef struct Rect
     V2 max;
 } Rect;
 
-internal Rect
-RectangleFromMinMax(V2 min, V2 max)
+internal inline Rect
+Rect_FromMinMax(V2 min, V2 max)
 {
     return (Rect){min, max};
 }
 
-internal Rect
-RectangleFromPosSize(V2 pos, V2 size)
+internal inline Rect
+Rect_FromPosSize(V2 pos, V2 size)
 {
     return (Rect){pos, V2_Add(pos, size)};
 }
 
-internal Rect
-RectangleFromPosScale(V2 pos, V2 scale)
+internal inline Rect
+Rect_FromPosScale(V2 pos, V2 scale)
 {
     return (Rect){V2_Sub(pos, V2_Scale(scale, 0.5)), V2_Add(pos, V2_Scale(scale, 0.5))};
 }
 
-internal bool
-PointIsInRectangle(V2 point, Rect rect)
+internal inline bool
+Rect_PointTest(V2 point, Rect rect)
 {
     return (point.x >= rect.min.x && point.x <= rect.max.x &&
             point.y >= rect.min.y && point.y <= rect.max.y);
 }
 
-internal V2
-CenterOfRectangle(Rect rect)
+internal inline f32
+Rect_Height(Rect rect)
+{
+    return rect.max.y - rect.min.y;
+}
+
+internal inline f32
+Rect_Width(Rect rect)
+{
+    return rect.max.x - rect.min.x;
+}
+
+internal inline V2
+Rect_Center(Rect rect)
 {
     return (V2){
         .x = (rect.min.x + rect.max.x) / 2,

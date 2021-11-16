@@ -9,6 +9,11 @@
 #endif
 
 #ifdef _WIN32
+
+#ifndef _WIN64
+#error 32 bit mode is not supported yet
+#endif
+
 typedef signed __int8  i8;
 typedef signed __int16 i16;
 typedef signed __int32 i32;
@@ -19,13 +24,8 @@ typedef unsigned __int16 u16;
 typedef unsigned __int32 u32;
 typedef unsigned __int64 u64;
 
-#ifdef _WIN64
 typedef u64 umm;
 typedef i64 imm;
-#else
-typedef u32 umm;
-typedef i32 imm;
-#endif
 
 // NOTE: required to remove CRT
 void* memset(void* ptr, int value, umm size);
@@ -161,6 +161,9 @@ typedef Buffer String;
 #define internal static
 #define global static
 
+// NOTE: This is just a hack to work around a parsing bug in 4coder
+#define TYPEDEF_FUNC(return_val, name, ...) typedef return_val (*name)(__VA_ARGS__)
+
 #if IZ_DEBUG
 #define PLATFORM_PERSISTENT_MEMORY_SIZE GB(2)
 #define PLATFORM_TRANSIENT_MEMORY_SIZE  GB(2)
@@ -173,6 +176,7 @@ typedef Buffer String;
 #include "iz_string.h"
 #include "iz_math.h"
 #include "iz_renderer.h"
+#include "iz_targa.h"
 
 typedef struct Platform_Data
 {
