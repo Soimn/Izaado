@@ -340,7 +340,7 @@ GLRIM_Setup()
 }
 
 void
-GLRIM_PushLine(V2 p0, V2 p1, f32 line_thickness, V3 color)
+GLRIM_PushLineZ(V2 p0, V2 p1, f32 line_thickness, V3 color, f32 z)
 {
     V2 center = {(p0.x + p1.x) / 2, (p0.y + p1.y) / 2};
     
@@ -356,10 +356,10 @@ GLRIM_PushLine(V2 p0, V2 p1, f32 line_thickness, V3 color)
     
     M4 transform = {
         .e = {
-            Renderer->aspect_ratio * half_width * cos_a, half_width * sin_a, 0, 0,
-            -Renderer->aspect_ratio * half_height * sin_a, half_height * cos_a, 0, 0,
+            half_width * cos_a, half_width * sin_a, 0, 0,
+            -half_height * sin_a, half_height * cos_a, 0, 0,
             0, 0, 1, 0,
-            Renderer->aspect_ratio * center.x, center.y, 0, 1,
+            center.x, center.y, z, 1,
         }
     };
     
@@ -373,7 +373,7 @@ GLRIM_PushLine(V2 p0, V2 p1, f32 line_thickness, V3 color)
 }
 
 void
-GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
+GLRIM_PushFilledRectZ(Rect rect, f32 angle, V3 color, f32 z)
 {
     V2 center = Rect_Center(rect);
     
@@ -385,10 +385,10 @@ GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
     
     M4 transform = {
         .e = {
-            Renderer->aspect_ratio * cos_a * half_width, sin_a * half_width, 0, 0,
-            Renderer->aspect_ratio * -sin_a * half_height, cos_a * half_height, 0, 0,
+            cos_a * half_width, sin_a * half_width, 0, 0,
+            -sin_a * half_height, cos_a * half_height, 0, 0,
             0, 0, 1, 0,
-            Renderer->aspect_ratio * center.x, center.y, 0, 1,
+            center.x, center.y, z, 1,
         }
     };
     
@@ -402,7 +402,7 @@ GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
 }
 
 void
-GLRIM_PushRect(Rect rect, f32 angle, f32 line_thickness, V3 color)
+GLRIM_PushRectZ(Rect rect, f32 angle, f32 line_thickness, V3 color, f32 z)
 {
     V2 center = Rect_Center(rect);
     
@@ -426,28 +426,28 @@ GLRIM_PushRect(Rect rect, f32 angle, f32 line_thickness, V3 color)
     V2 p2 = M4_Transform(transform, (V4){ 0.5f,  0.5f, 0, 1}).xy;
     V2 p3 = M4_Transform(transform, (V4){-0.5f,  0.5f, 0, 1}).xy;
     
-    GLRIM_PushLine(p0, p1, line_thickness, color);
-    GLRIM_PushLine(p1, p2, line_thickness, color);
-    GLRIM_PushLine(p2, p3, line_thickness, color);
-    GLRIM_PushLine(p3, p0, line_thickness, color);
+    GLRIM_PushLineZ(p0, p1, line_thickness, color, z);
+    GLRIM_PushLineZ(p1, p2, line_thickness, color, z);
+    GLRIM_PushLineZ(p2, p3, line_thickness, color, z);
+    GLRIM_PushLineZ(p3, p0, line_thickness, color, z);
     
-    GLRIM_PushFilledRect(Rect_FromPosScale(p0, Vec2(line_thickness, line_thickness)), angle, color);
-    GLRIM_PushFilledRect(Rect_FromPosScale(p1, Vec2(line_thickness, line_thickness)), angle, color);
-    GLRIM_PushFilledRect(Rect_FromPosScale(p2, Vec2(line_thickness, line_thickness)), angle, color);
-    GLRIM_PushFilledRect(Rect_FromPosScale(p3, Vec2(line_thickness, line_thickness)), angle, color);
+    GLRIM_PushFilledRectZ(Rect_FromPosScale(p0, Vec2(line_thickness, line_thickness)), angle, color, z);
+    GLRIM_PushFilledRectZ(Rect_FromPosScale(p1, Vec2(line_thickness, line_thickness)), angle, color, z);
+    GLRIM_PushFilledRectZ(Rect_FromPosScale(p2, Vec2(line_thickness, line_thickness)), angle, color, z);
+    GLRIM_PushFilledRectZ(Rect_FromPosScale(p3, Vec2(line_thickness, line_thickness)), angle, color, z);
 }
 
 void
-GLRIM_PushCircle(V2 center, f32 radius, f32 line_thickness, V3 color)
+GLRIM_PushCircleZ(V2 center, f32 radius, f32 line_thickness, V3 color, f32 z)
 {
     f32 scale_factor = 1 + line_thickness / (2 * radius);
     
     M4 transform = {
         .e = {
-            Renderer->aspect_ratio * scale_factor * radius, 0, 0, 0,
+            scale_factor * radius, 0, 0, 0,
             0, scale_factor * radius, 0, 0,
             0, 0, 1, 0,
-            Renderer->aspect_ratio * center.x, center.y, 0, 1
+            center.x, center.y, z, 1
         }
     };
     
@@ -462,14 +462,14 @@ GLRIM_PushCircle(V2 center, f32 radius, f32 line_thickness, V3 color)
 }
 
 void
-GLRIM_PushFilledCircle(V2 center, f32 radius, V3 color)
+GLRIM_PushFilledCircleZ(V2 center, f32 radius, V3 color, f32 z)
 {
     M4 transform = {
         .e = {
-            Renderer->aspect_ratio * radius, 0, 0, 0,
+            radius, 0, 0, 0,
             0, radius, 0, 0,
             0, 0, 1, 0,
-            Renderer->aspect_ratio * center.x, center.y, 0, 1
+            center.x, center.y, z, 1
         }
     };
     
@@ -484,7 +484,7 @@ GLRIM_PushFilledCircle(V2 center, f32 radius, V3 color)
 }
 
 void
-GLRIM_PushText(Rect text_box, f32 angle, String text, V3 color)
+GLRIM_PushTextZ(Rect text_box, f32 angle, String text, V3 color, f32 z)
 {
     f32 text_size = Rect_Height(text_box);
     if (text.size * text_size > Rect_Width(text_box))
@@ -505,17 +505,17 @@ GLRIM_PushText(Rect text_box, f32 angle, String text, V3 color)
         f32 half_width  = character_width * text_size / 2;
         f32 half_height = text_size                   / 2;
         
-        V2 translation = V2_Add(advancement, (V2){half_width, 0});
+        V2 translation = V2_Add(advancement, (V2){half_width, Rect_Height(text_box) / 2 - half_height});
         
         f32 sin_a = Sin(angle);
         f32 cos_a = Cos(angle);
         
         M4 transform = {
             .e = {
-                Renderer->aspect_ratio * cos_a * half_width, sin_a * half_width, 0, 0,
-                Renderer->aspect_ratio * -sin_a * half_height, cos_a * half_height, 0, 0,
+                cos_a * half_width, sin_a * half_width, 0, 0,
+                -sin_a * half_height, cos_a * half_height, 0, 0,
                 0, 0, 1, 0,
-                Renderer->aspect_ratio * translation.x, translation.y, 0, 1,
+                translation.x, translation.y, z, 1,
             }
         };
         
@@ -529,4 +529,40 @@ GLRIM_PushText(Rect text_box, f32 angle, String text, V3 color)
         
         advancement.x += (character_width + character_end_pad) * text_size;
     }
+}
+
+void
+GLRIM_PushLine(V2 p0, V2 p1, f32 line_thickness, V3 color)
+{
+    GLRIM_PushLineZ(p0, p1, line_thickness, color, -1);
+}
+
+void
+GLRIM_PushFilledRect(Rect rect, f32 angle, V3 color)
+{
+    GLRIM_PushFilledRectZ(rect, angle, color, -1);
+}
+
+void
+GLRIM_PushRect(Rect rect, f32 angle, f32 line_thickness, V3 color)
+{
+    GLRIM_PushRectZ(rect, angle, line_thickness, color, -1);
+}
+
+void
+GLRIM_PushCircle(V2 center, f32 radius, f32 line_thickness, V3 color)
+{
+    GLRIM_PushCircleZ(center, radius, line_thickness, color, -1);
+}
+
+void
+GLRIM_PushFilledCircle(V2 center, f32 radius, V3 color)
+{
+    GLRIM_PushFilledCircleZ(center, radius, color, -1);
+}
+
+void
+GLRIM_PushText(Rect text_box, f32 angle, String text, V3 color)
+{
+    GLRIM_PushTextZ(text_box, angle, text, color, -1);
 }

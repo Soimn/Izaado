@@ -1,3 +1,8 @@
+#define PI32 3.1415926535f
+#define TAU32 6.2831853071f
+#define HALF_PI32 1.5707963267f
+#define E32 2.7182818284f
+
 internal f32
 Squared(f32 n)
 {
@@ -24,17 +29,56 @@ Sqrt(f32 n)
     
     return acc;
 }
-
-internal f32
-Cos(f32 x)
+internal inline bool
+IsNegative(f32 x)
 {
-    return 1;
+    return !!(((union{f32 f; u32 u;}*)&x)->u & (1 << 31));
 }
 
-internal f32
+internal inline f32
+Abs(f32 x)
+{
+    // TODO: replace with intrinsic
+    
+    union{f32 f; u32 u;} tmp;
+    tmp.f  = x;
+    tmp.u &= ~((u32)1 << 31);
+    
+    return tmp.f;
+}
+
+internal inline f32
 Sin(f32 x)
 {
-    return 0;
+    // TODO: replace with intrinsic
+    
+    imm q = (imm)(x / HALF_PI32) - IsNegative(x);
+    imm b = (imm)(x / PI32)      - IsNegative(x);
+    f32 r = x - q*HALF_PI32;
+    
+    f32 h = Abs((q & 1)*HALF_PI32 - r);
+    
+    f32 f0 = h*h*h/6;
+    f32 f1 = f0*h*h/20;
+    f32 f2 = f1*h*h/42;
+    
+    return (1 - ((b & 1) << 1))*(h - f0 + f1 - f2);
+}
+
+internal inline f32
+Cos(f32 x)
+{
+    // TODO: replace with intrinsic
+    
+    return Sin(x + HALF_PI32);
+}
+
+internal inline f32
+Tan(f32 x)
+{
+    // TODO: replace with intrinsic
+    
+    return Sin(x) / Cos(x);
 }
 
 typedef union  V2
@@ -586,5 +630,32 @@ Rect_Center(Rect rect)
     return (V2){
         .x = (rect.min.x + rect.max.x) / 2,
         .y = (rect.min.y + rect.max.y) / 2,
+    };
+}
+
+internal inline Rect
+Rect_ScaleUniformly(Rect rect, f32 scale)
+{
+    V2 center = Rect_Center(rect);
+    V2 dmin = V2_Scale(V2_Sub(rect.min, center), scale);
+    V2 dmax = V2_Scale(V2_Sub(rect.max, center), scale);
+    return (Rect){V2_Add(center, dmin), V2_Add(center, dmax)};
+}
+
+internal inline Rect
+Rect_Scale(Rect rect, V2 scale)
+{
+    V2 center = Rect_Center(rect);
+    V2 dmin = V2_Hadamard(V2_Sub(rect.min, center), scale);
+    V2 dmax = V2_Hadamard(V2_Sub(rect.max, center), scale);
+    return (Rect){V2_Add(center, dmin), V2_Add(center, dmax)};
+}
+
+internal inline Rect
+Rect_Translate(Rect rect, V2 translation)
+{
+    return (Rect){
+        .min = V2_Add(rect.min, translation),
+        .max = V2_Add(rect.max, translation),
     };
 }

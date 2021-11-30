@@ -15,6 +15,7 @@
 #include "iz_platform.h"
 #include "iz_renderer_opengl.h"
 #include "iz_win32_renderer.h"
+#include "iz_win32_platform.h"
 
 typedef struct Win32_File_Timestamp
 {
@@ -37,7 +38,7 @@ Win32_Log(const char* message, ...)
     
     va_list arg_list;
     va_start(arg_list, message);
-    umm required_size = FormatStringArgList((Buffer){0}, message, arg_list);
+    umm required_size = String_FormatArgList((Buffer){0}, message, arg_list);
     va_end(arg_list);
     
     Buffer buffer;
@@ -45,7 +46,7 @@ Win32_Log(const char* message, ...)
     buffer.data = Arena_PushSize(Platform->transient_memory, buffer.size, 1);
     
     va_start(arg_list, message);
-    FormatStringArgList(buffer, message, arg_list);
+    String_FormatArgList(buffer, message, arg_list);
     buffer.data[buffer.size - 1] = 0;
     va_end(arg_list);
     
@@ -63,7 +64,7 @@ Win32_ErrorPrompt(const char* message, ...)
     
     va_list arg_list;
     va_start(arg_list, message);
-    umm required_size = FormatStringArgList((Buffer){0}, message, arg_list);
+    umm required_size = String_FormatArgList((Buffer){0}, message, arg_list);
     va_end(arg_list);
     
     Buffer buffer;
@@ -71,114 +72,13 @@ Win32_ErrorPrompt(const char* message, ...)
     buffer.data = Arena_PushSize(Platform->transient_memory, buffer.size, 1);
     
     va_start(arg_list, message);
-    FormatStringArgList(buffer, message, arg_list);
+    String_FormatArgList(buffer, message, arg_list);
     buffer.data[buffer.size - 1] = 0;
     va_end(arg_list);
     
     MessageBoxA(GetActiveWindow(), (LPCSTR)buffer.data, "Izaado", MB_ICONERROR | MB_OK);
     
     Arena_EndTempMemory(Platform->transient_memory, mem_marker);
-}
-
-bool
-Win32_GetFileInfo(String path, File_Info* file_info)
-{
-    bool succeeded = false;
-    
-    Memory_Arena_Marker marker = Arena_BeginTempMemory(Platform->transient_memory);
-    
-    int required_chars = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, 0, 0);
-    
-    if (required_chars != 0)
-    {
-        WCHAR* wide_path = Arena_PushSize(Platform->transient_memory, (required_chars + 1) * sizeof(WCHAR), ALIGNOF(WCHAR));
-        
-        if (MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, wide_path, required_chars) == required_chars)
-        {
-            wide_path[required_chars] = 0;
-            
-            WIN32_FILE_ATTRIBUTE_DATA attributes;
-            if (GetFileAttributesExW(wide_path, GetFileExInfoStandard, &attributes))
-            {
-                file_info->creation_time.value    = (u64)attributes.ftCreationTime.dwHighDateTime   << 32 | attributes.ftCreationTime.dwLowDateTime;
-                file_info->last_write_time.value  = (u64)attributes.ftLastWriteTime.dwHighDateTime  << 32 | attributes.ftLastWriteTime.dwLowDateTime;
-                file_info->last_access_time.value = (u64)attributes.ftLastAccessTime.dwHighDateTime << 32 | attributes.ftLastAccessTime.dwLowDateTime;
-                file_info->file_size              = attributes.nFileSizeLow;
-                
-                // NOTE: files larger than 4GB are not supported
-                if (attributes.nFileSizeHigh == 0)
-                {
-                    succeeded = true;
-                }
-            }
-        }
-    }
-    
-    Arena_EndTempMemory(Platform->transient_memory, marker);
-    
-    return succeeded;
-}
-
-bool
-Win32_ReadEntireFile(String path, Memory_Arena* arena, File_Info* file_info, String* file_contents)
-{
-    bool succeeded = false;
-    
-    Memory_Arena_Marker marker = Arena_BeginTempMemory(Platform->transient_memory);
-    
-    HANDLE file_handle = INVALID_HANDLE_VALUE;
-    u32 file_size      = 0;
-    
-    int required_chars = MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, 0, 0);
-    
-    if (required_chars != 0)
-    {
-        WCHAR* wide_path = Arena_PushSize(Platform->transient_memory, (required_chars + 1) * sizeof(WCHAR), ALIGNOF(WCHAR));
-        
-        if (MultiByteToWideChar(CP_UTF8, 0, (LPCCH)path.data, (int)path.size, wide_path, required_chars) == required_chars)
-        {
-            wide_path[required_chars] = 0;
-            
-            WIN32_FILE_ATTRIBUTE_DATA attributes;
-            if (GetFileAttributesExW(wide_path, GetFileExInfoStandard, &attributes))
-            {
-                if (file_info != 0)
-                {
-                    file_info->creation_time.value    = (u64)attributes.ftCreationTime.dwHighDateTime   << 32 | attributes.ftCreationTime.dwLowDateTime;
-                    file_info->last_write_time.value  = (u64)attributes.ftLastWriteTime.dwHighDateTime  << 32 | attributes.ftLastWriteTime.dwLowDateTime;
-                    file_info->last_access_time.value = (u64)attributes.ftLastAccessTime.dwHighDateTime << 32 | attributes.ftLastAccessTime.dwLowDateTime;
-                    file_info->file_size              = attributes.nFileSizeLow;
-                }
-                
-                file_size = attributes.nFileSizeLow;
-                
-                // NOTE: files larger than 4GB are not supported
-                if (attributes.nFileSizeHigh == 0)
-                {
-                    file_handle = CreateFileW(wide_path, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, attributes.dwFileAttributes, 0);
-                }
-            }
-        }
-    }
-    
-    
-    Arena_EndTempMemory(Platform->transient_memory, marker);
-    
-    if (file_handle != INVALID_HANDLE_VALUE)
-    {
-        file_contents->size = file_size;
-        file_contents->data = Arena_PushSize(arena, file_size + 1, ALIGNOF(WCHAR));
-        
-        DWORD bytes_read;
-        if (ReadFile(file_handle, file_contents->data, (u32)file_size, &bytes_read, 0) && bytes_read == file_size)
-        {
-            file_contents->data[file_contents->size] = 0;
-            
-            succeeded = true;
-        }
-    }
-    
-    return succeeded;
 }
 
 LRESULT CALLBACK
@@ -233,7 +133,6 @@ Win32_LoadGameCode(Win32_Game_Code* game_code, LPWSTR game_code_path, LPWSTR tem
                 DeleteFile(loaded_game_code_path);
                 if (MoveFile(temp_game_code_path, loaded_game_code_path))
                 {
-					DeleteFile(temp_game_code_path);
                     handle = LoadLibraryW(loaded_game_code_path);
                     tick = (platform_game_tick)GetProcAddress(handle, "GameTick");
                     
@@ -278,8 +177,9 @@ WinMainCRTStartup()
             bool setup_failed = false;
             
             Platform_Data platform = {
-                .GetFileInfo    = &Win32_GetFileInfo,
-                .ReadEntireFile = &Win32_ReadEntireFile,
+                .GetFileInfo    = &Win32_PlatformGetFileInfo,
+                .ReadEntireFile = &Win32_PlatformReadEntireFile,
+                .Log            = &Win32_PlatformLog,
             };
             
             Platform = &platform;
@@ -427,6 +327,9 @@ WinMainCRTStartup()
                 }
             }
             
+            // HACK
+            bool mouse_down = false;
+            
             /// Run game
             if (!setup_failed)
             {
@@ -464,6 +367,9 @@ WinMainCRTStartup()
                         }
                     }
                     
+                    static u8 input_string_buffer[32];
+                    String input_string = {.data = input_string_buffer, .size = 0};
+                    
                     MSG msg;
                     while (PeekMessageW(&msg, 0, 0, 0, PM_REMOVE))
                     {
@@ -473,17 +379,54 @@ WinMainCRTStartup()
                             break;
                         }
                         
+                        else if (msg.message == WM_KEYDOWN)
+                        {
+                            // HACK
+                            if (input_string.size < ARRAY_SIZE(input_string_buffer))
+                            {
+                                input_string.data[input_string.size++] = (u8)msg.wParam;
+                            }
+                        }
+                        
                         else DispatchMessage(&msg);
                     }
                     
                     RECT window_rect;
                     GetWindowRect(window_handle, &window_rect); // TODO: Should the return value for this be checked?
-                    imm width  = window_rect.right - window_rect.left;
-                    imm height = window_rect.bottom - window_rect.top;
+                    u32 width  = (u32)(window_rect.right - window_rect.left);
+                    u32 height = (u32)(window_rect.bottom - window_rect.top);
+                    
+                    V2 cursor_pos;
+                    {
+                        RECT client_rect;
+                        GetClientRect(window_handle, &client_rect);
+                        
+                        POINT origin = {client_rect.left, client_rect.top};
+                        ClientToScreen(window_handle, &origin);
+                        
+                        POINT cursor;
+                        GetCursorPos(&cursor);
+                        ScreenToClient(window_handle, &cursor);
+                        
+                        imm cursor_y = cursor.y + (origin.y - window_rect.top);
+                        
+                        cursor_pos = (V2){(f32)cursor.x, (f32)((height - 1) - cursor_y)};
+                    }
+                    
+                    u32 mouse_button_state = 0;
+                    {
+                        bool new_down = !!(GetKeyState(VK_LBUTTON) & 0x8000);
+                        
+                        if      ( mouse_down &&  new_down) mouse_button_state = 1;
+                        else if (!mouse_down &&  new_down) mouse_button_state = 2;
+                        else if ( mouse_down && !new_down) mouse_button_state = 3;
+                        
+                        mouse_down = new_down;
+                    }
                     
                     Renderer_BeginFrame(width, height);
                     
-                    game_code.game_tick(Platform);
+                    game_code.game_tick(Platform, cursor_pos, input_string, mouse_button_state);
                     
                     Renderer_EndFrame();
                     
@@ -491,7 +434,7 @@ WinMainCRTStartup()
                     LARGE_INTEGER end_time;
                     QueryPerformanceCounter(&end_time);
                     
-                    Win32_Log("frame time: %ums", (u32)(1000 * (f32)(end_time.QuadPart - flip_time.QuadPart) / perf_freq.QuadPart));
+                    //Win32_Log("frame time: %ums", (u32)(1000 * (f32)(end_time.QuadPart - flip_time.QuadPart) / perf_freq.QuadPart));
                     
                     flip_time = end_time;
                 }

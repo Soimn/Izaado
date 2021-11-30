@@ -11,7 +11,7 @@ ToUpperCase(u8 c)
 }
 
 internal bool
-StringCompare(String s0, String s1)
+String_Compare(String s0, String s1)
 {
     if (s0.size == s1.size)
     {
@@ -29,7 +29,7 @@ StringCompare(String s0, String s1)
 }
 
 internal bool
-StringCompareCaseInsensitive(String s0, String s1)
+String_CompareCaseInsensitive(String s0, String s1)
 {
     if (s0.size == s1.size)
     {
@@ -47,7 +47,7 @@ StringCompareCaseInsensitive(String s0, String s1)
 }
 
 internal umm
-FormatStringArgList(Buffer out, const char* format, va_list args)
+String_FormatArgList(Buffer out, const char* format, va_list args)
 {
     umm required_bytes = 0;
     
@@ -232,11 +232,11 @@ FormatStringArgList(Buffer out, const char* format, va_list args)
 }
 
 internal umm
-FormatString(Buffer out, const char* format, ...)
+String_Format(Buffer out, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    umm result = FormatStringArgList(out, format, args);
+    umm result = String_FormatArgList(out, format, args);
     va_end(args);
     
     return result;

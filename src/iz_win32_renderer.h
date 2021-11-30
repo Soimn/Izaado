@@ -1,4 +1,4 @@
-TYPEDEF_FUNC(void, renderer_begin_frame, imm width, imm height);
+TYPEDEF_FUNC(void, renderer_begin_frame, u32 width, u32 height);
 TYPEDEF_FUNC(void, renderer_end_frame);
 
 global renderer_begin_frame Renderer_BeginFrame;
@@ -180,9 +180,10 @@ Win32_InitOpenGL(HINSTANCE instance, HWND window_handle)
 }
 
 void
-Win32_GLBeginFrame(imm width, imm height)
+Win32_GLBeginFrame(u32 width, u32 height)
 {
-    Renderer->aspect_ratio = (f32)height / (imm)width;
+    Renderer->width  = width;
+    Renderer->height = height;
     
     glViewport(0, 0, (GLsizei)width, (GLsizei)height);
     
@@ -206,12 +207,18 @@ Win32_RendererSetup(HINSTANCE instance, HWND window_handle)
     
     if (Win32_InitOpenGL(instance, window_handle) && GLRIM_Setup())
     {
-        state->PushLine         = &GLRIM_PushLine,
-        state->PushRect         = &GLRIM_PushRect,
-        state->PushFilledRect   = &GLRIM_PushFilledRect,
-        state->PushCircle       = &GLRIM_PushCircle,
-        state->PushFilledCircle = &GLRIM_PushFilledCircle,
-        state->PushText         = &GLRIM_PushText,
+        Platform->PushLine          = &GLRIM_PushLine;
+        Platform->PushRect          = &GLRIM_PushRect;
+        Platform->PushFilledRect    = &GLRIM_PushFilledRect;
+        Platform->PushCircle        = &GLRIM_PushCircle;
+        Platform->PushFilledCircle  = &GLRIM_PushFilledCircle;
+        Platform->PushText          = &GLRIM_PushText;
+        Platform->PushLineZ         = &GLRIM_PushLineZ;
+        Platform->PushRectZ         = &GLRIM_PushRectZ;
+        Platform->PushFilledRectZ   = &GLRIM_PushFilledRectZ;
+        Platform->PushCircleZ       = &GLRIM_PushCircleZ;
+        Platform->PushFilledCircleZ = &GLRIM_PushFilledCircleZ;
+        Platform->PushTextZ         = &GLRIM_PushTextZ;
         
         Renderer_BeginFrame = &Win32_GLBeginFrame;
         Renderer_EndFrame   = &Win32_GLEndFrame;

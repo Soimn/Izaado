@@ -178,7 +178,6 @@ typedef Buffer String;
 #include "iz_renderer.h"
 #include "iz_targa.h"
 
-
 typedef struct File_Timestamp
 {
     u64 value;
@@ -194,6 +193,7 @@ typedef struct File_Info
 
 TYPEDEF_FUNC(bool, platform_get_file_info, String path, File_Info* file_info);
 TYPEDEF_FUNC(bool, platform_read_entire_file, String path, Memory_Arena* arena, File_Info* file_info, String* file_contents);
+TYPEDEF_FUNC(void, platform_log, const char* format, ...);
 
 typedef struct Platform_Data
 {
@@ -202,11 +202,26 @@ typedef struct Platform_Data
     
     platform_get_file_info GetFileInfo;
     platform_read_entire_file ReadEntireFile;
+    platform_log Log;
     
-    struct Renderer_State renderer_state;
+    Renderer_State renderer_state;
+    rim_push_line PushLine;
+    rim_push_rect PushRect;
+    rim_push_filled_rect PushFilledRect;
+    rim_push_circle PushCircle;
+    rim_push_filled_circle PushFilledCircle;
+    rim_push_text PushText;
+    
+    rim_push_line_z PushLineZ;
+    rim_push_rect_z PushRectZ;
+    rim_push_filled_rect_z PushFilledRectZ;
+    rim_push_circle_z PushCircleZ;
+    rim_push_filled_circle_z PushFilledCircleZ;
+    rim_push_text_z PushTextZ;
+    
 } Platform_Data;
 
 Platform_Data* Platform;
 Renderer_State* Renderer;
 
-TYPEDEF_FUNC(void, platform_game_tick, Platform_Data* platform);
+TYPEDEF_FUNC(void, platform_game_tick, Platform_Data* platform, V2 cursor_pos, String input_String, u32 mouse_button_state);
